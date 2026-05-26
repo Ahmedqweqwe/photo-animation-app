@@ -52,7 +52,7 @@ if st.session_state.api_verified and api_key_input:
                 """
                 
                 try:
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash') 
                     response = model.generate_content(prompt)
                     
                     st.success("🎉 تم توليد المقالة بنجاح!")

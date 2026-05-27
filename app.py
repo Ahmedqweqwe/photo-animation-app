@@ -1,74 +1,81 @@
 import streamlit as st
-import google.generativeai as genai
+import hashlib
+from base64 import urlsafe_b64encode
+from cryptography.fernet import Fernet
 
-st.set_page_config(page_title="صانع المقالات الحصرية للسيو", page_icon="✍️", layout="centered")
+# إعدادات الصفحة الرئيسية
+st.set_page_config(page_title="خزنة الأغاني الذكية", page_icon="🎵", layout="centered")
 
-st.title("✍️ صانع المقالات الحصرية المتوافقة مع أدسنس والسيو")
-st.write("اكتب عنوان مقالك والكلمات المفتاحية، وسيقوم السكريبت بصياغة مقالة احترافية بأسلوب بشري غير مكشوف.")
+st.title("🎵 خزنة الأغاني والملفات الصوتية")
+st.write("قم بتشفير أغانيك برقم سري لحمايتها، أو فك تشفيرها للاستماع إليها!")
 
-# 1. إدخال مفتاح الـ API مع تفعيل خاصية الرؤية المخفية للأمان
-api_key_input = st.text_input("أدخل مفتاح Gemini API Key الجديد الخاص بك:", type="password", key="gemini_key")
+# دالة توليد مفتاح التشفير
+def generate_key_from_password(password: str) -> bytes:
+    hasher = hashlib.sha256(password.encode())
+    return urlsafe_b64encode(hasher.digest())
 
-# إنشاء متغير في ذاكرة السيرفر لحفظ حالة التأكيد
-if "api_verified" not in st.session_state:
-    st.session_state.api_verified = False
+# القائمة الجانبية للتنقل
+choice = st.sidebar.selectbox("اختر العملية:", ["تشفير وقفل أغنية", "فك قفل وتشغيل أغنية"])
 
-# زر التأكيد الذي طلبته
-if st.button("🔗 تأكيد وحفظ المفتاح", key="verify_btn"):
-    if api_key_input:
-        st.session_state.api_verified = True
-        st.success("✅ تم تفعيل المفتاح بنجاح! الخانات ظهرت في الأسفل.")
-    else:
-        st.error("❌ الرجاء لصق المفتاح أولاً قبل الضغط على تأكيد.")
-
-st.markdown("---")
-
-# 2. الخانات تفتح فقط إذا تم الضغط على زر التأكيد
-if st.session_state.api_verified and api_key_input:
-    genai.configure(api_key=api_key_input)
+# --- القسم الأول: التشفير ---
+if choice == "تشفير وقفل أغنية":
+    st.header("🔒 قفل ملف صوتي برقم سري")
     
-    title = st.text_input("عنوان المقالة المستهدف:", placeholder="مثال: أفضل طرق الربح من الدومينات 2026")
-    keywords = st.text_input("الكلمات المفتاحية:", placeholder="مثال: الربح من الإنترنت, تجارة الدومينات, سيو")
-    target_country = st.text_input("الجمهور أو الدولة المستهدفة:", "السعودية")
+    uploaded_file = st.file_uploader("اختر ملف الأغنية (MP3)", type=["mp3"])
+    password = st.text_input("أدخل الرقم السري للقفل:", type="password")
     
-    if st.button("توليد المقالة الحصرية والمنسقة ✨", key="generate_btn"):
-        if title and keywords:
-            with st.spinner("جاري صياغة المقالة بأسلوب بشري وتحسين السيو... انتظر قليلاً"):
+    if uploaded_file and password:
+        if st.button("تشفير الملف الآن"):
+            try:
+                file_bytes = uploaded_file.read()
+                key = generate_key_from_password(password)
+                fernet = Fernet(key)
                 
-                prompt = f"""
-                أنت خبير سيو (SEO) محترف وكاتب محتوى صحفي عربي بطريقة بشرية بنسبة 100%.
-                أريدك أن تكتب مقالة كاملة وحصرية وشاملة حول هذا العنوان: "{title}".
-                الكلمات المفتاحية التي يجب دمجها بشكل طبيعي داخل النص هي: [{keywords}].
-                الجمهور المستهدف يقع في: {target_country}.
+                # تشفير البيانات
+                encrypted_data = fernet.encrypt(file_bytes)
                 
-                شروط ومعايير كتابة المقالة (صارمة جداً للقبول في جوجل أدسنس):
-                1. أسلوب الكتابة: اكتب بأسلوب بشري طبيعي، تفاعلي، وممتع. ابتعد تماماً عن الكلمات المكررة والنمطية التي تستخدمها روبوتات الذكاء الاصطناعي مثل (في هذا المقال سنتناول، جدير بالذكر، يشار إلى أن، في الختام يمكن القول).
-                2. التنسيق الهيكلي: استخدم عناوين فرعية واضحة جداً (H2 و H3) بصيغة الماركداون (## و ###). استخدم القوائم النقطية لتسهيل القراءة.
-                3. الطول والعمق: يجب أن تكون المقالة غنية بالمعلومات ومفصلة (لا تقل عن 800 إلى 1000 كلمة)، وتجيب على كل استفسارات الزائر لتقليل نسبة الارتداد (Bounce Rate).
-                4. توزيع الكلمات المفتاحية: وزع الكلمات المستهدفة [{keywords}] في أول 100 كلمة، وداخل العناوين الفرعية، وفي الفقرات بدون حشو زائد (Keyword Stuffing).
-                5. قسم الأسئلة الشائعة: أضف في نهاية المقال قسماً يحتوي على 3 أسئلة شائعة وإجاباتها المختصرة (FAQ) بناءً على ما يبحث عنه المستخدمون في جوجل حول هذا الموضوع، لأن هذا يسرع الأرشفة.
+                # تجهيز اسم الملف الجديد
+                new_filename = uploaded_file.name.replace(".mp3", ".vault")
                 
-                ابدأ بكتابة المقالة مباشرة بالتنسيق المطلوب دون أي مقدمات ترحيبية.
-                """
+                st.success("✔ تم تشفير الملف بنجاح! جاهز للتحميل الآن.")
+                st.download_button(
+                    label="📥 تحميل الملف المشفر (.vault)",
+                    data=encrypted_data,
+                    file_name=new_filename,
+                    mime="application/octet-stream"
+                )
+            except Exception as e:
+                st.error(f"حدث خطأ أثناء التشفير: {e}")
+
+# --- القسم الثاني: فك التشفير والتشغيل ---
+elif choice == "فك قفل وتشغيل أغنية":
+    st.header("🔓 تشغيل الأغنية المشفرة")
+    
+    uploaded_file = st.file_uploader("ارفع الملف المشفر (.vault)", type=["vault"])
+    password = st.text_input("أدخل الرقم السري للفتح:", type="password")
+    
+    if uploaded_file and password:
+        if st.button("التحقق والتشغيل"):
+            try:
+                encrypted_bytes = uploaded_file.read()
+                key = generate_key_from_password(password)
+                fernet = Fernet(key)
                 
-                try:
-model = genai.GenerativeModel('gemini-1.5-flash') 
-                    response = model.generate_content(prompt)
-                    
-                    st.success("🎉 تم توليد المقالة بنجاح!")
-                    st.markdown(response.text)
-                    st.markdown("---")
-                    
-                    st.download_button(
-                        label="📋 تحميل المقالة كملف نصي (txt)",
-                        data=response.text,
-                        file_name=f"{title}.txt",
-                        mime="text/plain"
-                    )
-                    
-                except Exception as e:
-                    st.error(f"حدث خطأ أثناء الاتصال بالذكاء الاصطناعي: {e}")
-        else:
-            st.warning("الرجاء إدخال العنوان والكلمات المفتاحية أولاً.")
-else:
-    st.info("💡 بمجرد وضع المفتاح الجديد والضغط على زر 'تأكيد وحفظ المفتاح'، ستظهر لك خانات كتابة المقال مباشرة.")
+                # محاولة فك التشفير
+                decrypted_data = fernet.decrypt(encrypted_bytes)
+                
+                st.success("✔ الرقم السري صحيح! يمكنك الاستماع أو التحميل الآن:")
+                
+                # مشغل الصوت في Streamlit
+                st.audio(decrypted_data, format="audio/mp3")
+                
+                # إمكانية إعادة تحميله كـ MP3 أصلي
+                original_filename = uploaded_file.name.replace(".vault", ".mp3")
+                st.download_button(
+                    label="📥 تحميل الملف كـ MP3 أصلي",
+                    data=decrypted_data,
+                    file_name=original_filename,
+                    mime="audio/mp3"
+                )
+            except Exception:
+                st.error("✖ الرقم السري غير صحيح! لا يمكن فتح الملف.")

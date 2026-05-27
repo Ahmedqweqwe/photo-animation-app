@@ -1,109 +1,119 @@
 import streamlit as st
-import hashlib
-from base64 import urlsafe_b64encode
-from cryptography.fernet import Fernet
+import datetime
 
-# إعدادات الصفحة
-st.set_page_config(page_title="خزنة الأغاني المتعددة", page_icon="🎵", layout="centered")
+# 1. إعدادات الصفحة بشكل احترافي
+st.set_page_config(
+    page_title="المكتبة الصوتية المتكاملة",
+    page_icon="🎵",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-st.title("🎵 خزنة الأغاني والمكتبة الصوتية الآمنة")
-st.write("يمكنك الآن إضافة عدة أغاني، تشفيرها برقم سري، تشغيلها، أو مسحها في أي وقت!")
+# تخصيص واجهة المستخدم وبناء تنسيق مريح للعين
+st.title("🎵 استوديو ومكتبة الأغاني الذكية")
+st.write("منصة كاملة لرفع، تشغيل، تنظيم، وحذف الأغاني والمقاطع الصوتية بكل حرية وبدون قيود.")
 
-# دالة توليد مفتاح التشفير من الرقم السري
-def generate_key_from_password(password: str) -> bytes:
-    hasher = hashlib.sha256(password.encode())
-    return urlsafe_b64encode(hasher.digest())
+# 2. تهيئة مخزن البيانات في الجلسة (Session State)
+if "music_library" not in st.session_state:
+    st.session_state.music_library = [] # مصفوفة تحتوي على قواميس لكل أغنية تفاصيلها
 
-# تهيئة مخزن الأغاني في الجلسة إذا لم يكن موجوداً
-if "vault_songs" not in st.session_state:
-    st.session_state.vault_songs = {}  # قاموس لحفظ الأغاني المشفرة {اسم_الملف: البيانات_المشفرة}
+# دالة مساعدة لحساب حجم الملف بشكل مقروء
+def get_file_size_format(b_size):
+    mb_size = b_size / (1024 * 1024)
+    return f"{mb_size:.2f} MB"
 
-# القائمة الجانبية للتنقل
-choice = st.sidebar.selectbox("اختر العملية:", ["➕ إضافة وتشفير أغنية جديدة", "🗂️ استعراض وتشغيل المكتبة"])
+# 3. القائمة الجانبية: إحصائيات سريعة وأزرار التحكم العام
+st.sidebar.header("📊 إحصائيات المكتبة الحالية")
+total_songs = len(st.session_state.music_library)
+total_size = sum([song['size_bytes'] for song in st.session_state.music_library])
 
-# --- القسم الأول: إضافة وتشفير الأغاني ---
-if choice == "➕ إضافة وتشفير أغنية جديدة":
-    st.header("🔒 قفل وإضافة ملف صوتي للمكتبة")
-    
-    uploaded_files = st.file_uploader("اختر ملف أو عدة ملفات صوتية (MP3)", type=["mp3"], accept_multiple_files=True)
-    password = st.text_input("أدخل الرقم السري لقفل هذه الملفات:", type="password")
-    
-    if uploaded_files and password:
-        if st.button("🔐 تشفير وإضافة للمكتبة"):
-            key = generate_key_from_password(password)
-            fernet = Fernet(key)
-            
-            success_count = 0
-            for uploaded_file in uploaded_files:
-                file_bytes = uploaded_file.read()
-                # تشفير الملف
-                encrypted_data = fernet.encrypt(file_bytes)
-                
-                # تغيير الامتداد إلى .vault وحفظه في ذاكرة التطبيق
-                vault_filename = uploaded_file.name.replace(".mp3", ".vault")
-                
-                st.session_state.vault_songs[vault_filename] = encrypted_data
-                success_count += 1
-                
-            st.success(f"✔ تم تشفير وحفظ {success_count} ملف بنجاح في مكتبتك الحالية!")
-            st.info("💡 يمكنك الآن الذهاب إلى قسم 'استعراض وتشغيل المكتبة' لإدارتها.")
+st.sidebar.metric(label="عدد الأغاني المرفوعة", value=f"{total_songs} أغنية")
+st.sidebar.metric(label="إجمالي حجم المكتبة", value=get_file_size_format(total_size))
 
-# --- القسم الثاني: استعراض وتشغيل وحذف الأغاني ---
-elif choice == "🗂️ استعراض وتشغيل المكتبة":
-    st.header("🗂️ مكتبة الأغاني المشفرة الخاصة بك")
-    
-    if not st.session_state.vault_songs:
-        st.info("مكتبتك فارغة حالياً. قم بإضافة بعض الأغاني من القائمة الجانبية.")
-    else:
-        st.write(f"تحتوي مكتبتك على: **{len(st.session_state.vault_songs)}** ملف مشفر.")
+st.sidebar.markdown("---")
+st.sidebar.header("⚙️ تحكم سريع بالكامل")
+
+# زر مسح المكتبة بالكامل وتصفيرها
+if st.sidebar.button("🗑️ إفراغ ومسح المكتبة بالكامل", type="primary"):
+    st.session_state.music_library = []
+    st.sidebar.success("تم تصفير وحذف جميع الأغاني بنجاح!")
+    st.rerun()
+
+# 4. القسم الأول: شاشة رفع وإضافة الأغاني الجديدة
+st.header("📥 رفع وإضافة أغاني جديدة")
+uploaded_files = st.file_uploader(
+    "اسحب وأفلت ملفات الـ MP3 هنا (يمكنك اختيار كمية كبيرة من الأغاني معاً):",
+    type=["mp3", "wav", "m4a"],
+    accept_multiple_files=True
+)
+
+if uploaded_files:
+    if st.button("🚀 دمج الأغاني المحددة داخل المكتبة", use_container_width=True):
+        added_count = 0
+        for f in uploaded_files:
+            # التحقق من أن الأغنية غير مكررة بنفس الاسم
+            if not any(song['name'] == f.name for song in st.session_state.music_library):
+                file_bytes = f.read()
+                song_data = {
+                    "id": len(st.session_state.music_library) + 1,
+                    "name": f.name,
+                    "bytes": file_bytes,
+                    "size_bytes": len(file_bytes),
+                    "date_added": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                }
+                st.session_state.music_library.append(song_data)
+                added_count += 1
         
-        # عرض الأغاني على شكل قائمة مع أزرار التحكم
-        for song_name in list(st.session_state.vault_songs.keys()):
-            with st.expander(f"🎵 {song_name}"):
+        if added_count > 0:
+            st.success(f"✔ تم إضافة {added_count} أغنية جديدة إلى مكتبتك الصوتية بنجاح!")
+        else:
+            st.warning("⚠️ جميع الملفات التي اخترتها موجودة بالفعل في المكتبة.")
+        st.rerun()
+
+st.markdown("---")
+
+# 5. القسم الثاني: استعراض المكتبة، البحث، والتشغيل والحذف
+st.header("🗂️ لوحة تحكم واستعراض الأغاني")
+
+if not st.session_state.music_library:
+    st.info("مكتبتك فارغة حالياً. قم برفع بعض الأغاني من الأعلى لتبدأ التشغيل والإدارة!")
+else:
+    # شريط البحث الذكي لتصفية الأغاني
+    search_query = st.text_input("🔍 ابحث عن أغنية معينة داخل مكتبتك:", "").strip().lower()
+    
+    # تصفية قائمة الأغاني بناءً على البحث
+    filtered_songs = [
+        song for song in st.session_state.music_library 
+        if search_query in song['name'].lower()
+    ]
+    
+    st.write(f"عرض **{len(filtered_songs)}** أغنية من أصل **{total_songs}**")
+    
+    # عرض الأغاني بشكل تفاعلي ومرتب
+    for index, song in enumerate(filtered_songs):
+        # صندوق منبثق لكل أغنية يحتوي على المشغل والأزرار الخاصة بها
+        with st.expander(f"🎵 {song['name']} | 📦 الحجم: {get_file_size_format(song['size_bytes'])} | 📅 أُضيفت: {song['date_added']}"):
+            
+            # مشغل الصوت الاحترافي لـ Streamlit
+            st.audio(song['bytes'], format="audio/mp3")
+            
+            # أزرار التحكم الفرعية (تحميل وحذف)
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                # زر تحميل الأغنية فوراً إلى جهاز المستخدم
+                st.download_button(
+                    label="📥 تحميل الأغنية للجهاز",
+                    data=song['bytes'],
+                    file_name=song['name'],
+                    mime="audio/mp3",
+                    key=f"download_{song['name']}_{index}"
+                )
                 
-                # طلب الرقم السري الخاص بكل أغنية لتشغيلها أو تحميلها
-                check_password = st.text_input(f"أدخل الرقم السري لـ {song_name}:", type="password", key=f"pass_{song_name}")
-                
-                col1, col2, col3 = st.columns([2, 2, 1])
-                
-                with col1:
-                    if st.button("▶ تشغيل فوري", key=f"play_{song_name}"):
-                        if check_password:
-                            try:
-                                encrypted_bytes = st.session_state.vault_songs[song_name]
-                                key = generate_key_from_password(check_password)
-                                fernet = Fernet(key)
-                                
-                                # فك التشفير للتشغيل
-                                decrypted_data = fernet.decrypt(encrypted_bytes)
-                                st.audio(decrypted_data, format="audio/mp3")
-                            except Exception:
-                                st.error("✖ الرقم السري غير صحيح!")
-                        else:
-                            st.warning("الرجاء إدخال الرقم السري أولاً.")
-                            
-                with col2:
-                    if check_password:
-                        try:
-                            encrypted_bytes = st.session_state.vault_songs[song_name]
-                            key = generate_key_from_password(check_password)
-                            fernet = Fernet(key)
-                            decrypted_data = fernet.decrypt(encrypted_bytes)
-                            
-                            # زر تحميل الملف الأصلي كمـ MP3
-                            original_name = song_name.replace(".vault", ".mp3")
-                            st.download_button(
-                                label="📥 تحميل MP3",
-                                data=decrypted_data,
-                                file_name=original_name,
-                                mime="audio/mp3",
-                                key=f"down_{song_name}"
-                            )
-                        except Exception:
-                            pass
-                            
-                with col3:
-                    # زر الحذف من المكتبة
-                    if st.button("🗑️ مسح", key=f"del_{song_name}"):
-                        del st.session_state.vault_songs[song_name]
-                        st.rerun()
+            with col2:
+                # زر مسح الأغنية المحددة فقط دون المساس بالباقي
+                if st.button("🗑️ مسح هذه الأغنية فقط", key=f"delete_{song['name']}_{index}", type="secondary"):
+                    # إيجاد الأغنية الأصلية وحذفها من المخزن الأساسي
+                    st.session_state.music_library = [s for s in st.session_state.music_library if s['name'] != song['name']]
+                    st.success(f"تم حذف '{song['name']}' بنجاح!")
+                    st.rerun()
